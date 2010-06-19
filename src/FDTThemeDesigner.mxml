@@ -1,0 +1,333 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:WindowedApplication xmlns:fx="http://ns.adobe.com/mxml/2009" 
+					   xmlns:s="library://ns.adobe.com/flex/spark" 
+					   xmlns:mx="library://ns.adobe.com/flex/halo" 
+					   xmlns:ns="library:adobe/flashx/textLayout"
+					   applicationComplete="applicationCompleteHandler(event)"
+					   width="1024"
+					   height="768"
+					   click="windowedapplication1_clickHandler(event)"
+					   doubleClick="windowedapplication1_doubleClickHandler(event)"
+					   >
+	<fx:Style>
+		@namespace s "library://ns.adobe.com/flex/spark";
+		@namespace mx "library://ns.adobe.com/flex/halo";
+		@namespace ns "library:adobe/flashx/textLayout";
+		@font-face { 
+			src: url("../assets/COURBD.TTF"); 
+			fontFamily: COURIER_NEW; 
+			fontWeight: bold;
+			advancedAntiAliasing: true; 
+			embedAsCFF:true ;
+		}
+		
+		.codeDisplay
+		{
+			font-weight:bold;	
+		}
+		
+	</fx:Style>
+	
+	<fx:Script>
+		<![CDATA[
+			import flash.events.Event;
+			import flash.events.MouseEvent;
+			import flash.net.URLLoader;
+			import flash.net.URLRequest;
+			import flash.utils.Dictionary;
+			
+			import flashx.textLayout.conversion.TextConverter;
+			import flashx.textLayout.elements.FlowElement;
+			import flashx.textLayout.elements.LinkElement;
+			import flashx.textLayout.elements.TextFlow;
+			import flashx.textLayout.events.FlowElementMouseEvent;
+			
+			import mx.core.UIComponent;
+			import mx.events.ColorPickerEvent;
+			import mx.events.DropdownEvent;
+			import mx.events.FlexEvent;
+			
+			protected var textLoader:URLLoader;
+			
+			protected var functionElements:Array;
+			protected var currentElements:Array;
+			protected var currentColor:uint;
+			protected var currentBackgroundColor:uint;
+			
+			protected var currentStyle:String = "";
+			protected var styles:Dictionary = new Dictionary();
+			
+			protected var isTargetBackground:Boolean = false;
+			
+			protected function applicationCompleteHandler(event:FlexEvent):void
+			{
+				var textRequest:URLRequest = new URLRequest("assets/CodeTemplate.txt");
+				
+				textLoader = new URLLoader();
+				textLoader.addEventListener(Event.COMPLETE, textLoader_completeHandler);
+				textLoader.load(textRequest);
+			}
+			
+			protected function textLoader_completeHandler(event:Event):void
+			{
+				var string:String = textLoader.data as String;
+				var textFlow:TextFlow = TextConverter.importToFlow(string, TextConverter.TEXT_LAYOUT_FORMAT);
+				codeDisplay.textFlow = textFlow;
+				codeDisplay.textFlow.addEventListener(FlowElementMouseEvent.MOUSE_DOWN, linkRollOverHandler);
+			}
+			
+			protected function linkRollOverHandler(event:FlowElementMouseEvent):void
+			{
+				colorPicker.close();
+				var linkElement:LinkElement = event.flowElement as LinkElement;
+				var style:String = linkElement.href.substr(6);
+				trace(style);
+				currentElements = codeDisplay.textFlow.getElementsByStyleName(style);
+				
+				currentColor = FlowElement(currentElements[0]).getStyle("color");
+				currentStyle = style;
+				
+				colorPicker.x = mouseX + 10;
+				colorPicker.y = mouseY;
+				colorPicker.visible = true;
+				colorPicker.open();
+			}
+
+			protected function colorPicker_changeHandler(event:ColorPickerEvent):void
+			{
+				currentColor = event.color;
+				
+				setCurrentElementsColor(event.color);
+				
+				var color:Object = getRGB(event.color); 
+				styles[currentStyle] = String(color.r + "," + color.g + "," + color.b);
+				
+				colorPicker.visible = false;
+			}
+
+			protected function backgroundColorPicker_changeHandler(event:ColorPickerEvent):void
+			{
+				currentBackgroundColor = event.color;
+				
+				var color:Object = getRGB(event.color); 
+				
+				styles["Background"] = String(color.r + "," + color.g + "," + color.b);
+				
+				backgroundColorPicker.visible = false;
+				backgroundColorPicker.close();
+			}
+
+			
+			public function getRGB(color : uint) : Object {
+				var c : Object = {};
+				c.r = color >> 16 & 0xFF;
+				c.g = color >> 8 & 0xFF;
+				c.b = color & 0xFF;
+				return c;
+			}
+			
+			protected function colorPicker_itemRollOverHandler(event:ColorPickerEvent):void
+			{
+				//temporarily test the color
+				setCurrentElementsColor(event.color);
+			}
+
+			protected function backgroundColorPicker_itemRollOverHandler(event:ColorPickerEvent):void
+			{
+				//temporarily test the color
+				background.setStyle("backgroundColor", event.color);
+			}
+
+			protected function colorPicker_closeHandler(event:DropdownEvent):void
+			{
+				setCurrentElementsColor(currentColor);
+			}
+
+			protected function backgroundColorPicker_closeHandler(event:DropdownEvent):void
+			{
+				setCurrentElementsColor(currentColor);
+			}
+
+
+			protected function windowedapplication1_clickHandler(event:MouseEvent):void
+			{
+				if(background != null)
+				{
+					background.setStyle("backgroundColor", currentBackgroundColor);
+				}
+				
+				colorPicker.visible = false;
+				colorPicker.close();
+				backgroundColorPicker.visible = false;
+				backgroundColorPicker.close();
+			}
+
+			
+			protected var background:UIComponent;
+			protected function windowedapplication1_doubleClickHandler(event:MouseEvent):void
+			{
+				background = event.target as UIComponent;
+				
+				currentBackgroundColor = background.getStyle("backgroundColor");
+				
+				backgroundColorPicker.close();
+				backgroundColorPicker.x = mouseX + 10;
+				backgroundColorPicker.y = mouseY;
+				backgroundColorPicker.visible = true;
+				backgroundColorPicker.open();
+				isTargetBackground = true;
+			}
+			
+			protected function setCurrentElementsColor(color:uint):void
+			{
+				for each(var flowElement:FlowElement in currentElements)
+				{
+					flowElement.setStyle("color", color);
+				}
+			}
+
+
+			protected function saveButton_clickHandler(event:MouseEvent):void
+			{
+				var file:File = File.desktopDirectory.resolvePath("customTheme.epf");
+				file.addEventListener(Event.SELECT, onFileSelectHandler);
+				file.browseForSave("Save As");
+			}
+			
+			protected function onFileSelectHandler(event:Event):void
+			{
+				var AS_DEFAULT_color:String = styles["AS_DEFAULT_color"] || "127,127,127";
+
+				var AS_CONSTANTS_color:String = styles["AS_CONSTANTS_color"] || "127,127,127";
+				var AS_CORE_color:String = styles["AS_CORE_color"] || "127,127,127";
+				var AS_INTERNAL_color:String = styles["AS_INTERNAL_color"] || "127,127,127";
+				var AS_KEYWORD_color:String = styles["AS_KEYWORD_color"] || "127,127,127";
+				var AS_PRIVATE_color:String = styles["AS_PRIVATE_color"] || "127,127,127";
+				var AS_PROTECTED_color:String = styles["AS_PROTECTED_color"] || "127,127,127";
+				var AS_PUBLIC_color:String = styles["AS_PUBLIC_color"] || "127,127,127";
+				var AS_RETURN_color:String = styles["AS_RETURN_color"] || "127,127,127";
+				var AS_TYPE_color:String = styles["AS_TYPE_color"] || "127,127,127";
+				var CHARACTER_color:String = styles["CHARACTER_color"] || "127,127,127";
+				
+				var NamespaceModifier_color:String = styles["NamespaceModifier_color"] || "127,127,127";
+				var Namespace_color:String = styles["Namespace_color"] || "127,127,127";
+				var Class_color:String = styles["Class_color"] || "127,127,127";
+				var Field_color:String = styles["Field_color"] || "127,127,127";
+				var Function_color:String = styles["Function_color"] || "127,127,127";
+				var Getter_color:String = styles["Getter_color"] || "127,127,127";
+				var Setter_color:String = styles["Setter_color"] || "127,127,127";
+				var StaticField_color:String = styles["StaticField_color"] || "127,127,127";
+				var StaticFunction_color:String = styles["StaticFunction_color"] || "127,127,127";
+				var StaticGetter_color:String = styles["StaticGetter_color"] || "127,127,127";
+				var StaticSetter_color:String = styles["StaticSetter_color"] || "127,127,127";
+				var TopLevelVariable_color:String = styles["TopLevelVariable_color"] || "127,127,127";
+
+				var MULTILINE_COMMENT_color:String = styles["MULTILINE_COMMENT_color"] || "127,127,127";
+				var SINGLELINE_COMMENT_color:String = styles["SINGLELINE_COMMENT_color"] || "127,127,127";
+				var STRING_color:String = styles["STRING_color"] || "127,127,127";
+				
+				
+				var Background:String = styles["Background"] || "127,127,127";
+				var currentLineColor:String = styles["currentLineColor"] || "127,127,127";
+				var lineNumberColor:String = styles["lineNumberColor"] || "127,127,127";
+				var printMarginColor:String = styles["printMarginColor"] || "127,127,127";
+
+				
+				
+				var themeString:String = "#author John Lindquist - johnlindquist@gmail.com - http://pv3d.org";
+				themeString += "\n#RegExp for stripping non-color prefs			^.(?!.*fdt.ui|.*ui.editors)";
+				themeString += "\n#Used Notepad++ for deleting empty lines and sorting alphabetically";
+
+				themeString += "\nfile_export_version=3.0";
+
+				themeString += "\n/instance/com.powerflasher.fdt.ui/AS_DEFAULT_color=" + AS_DEFAULT_color;
+
+				themeString += "\n/instance/com.powerflasher.fdt.ui/AS_CONSTANTS_color=" + AS_CONSTANTS_color;
+				themeString += "\n/instance/com.powerflasher.fdt.ui/AS_CORE_color=" + AS_CORE_color;
+				themeString += "\n/instance/com.powerflasher.fdt.ui/AS_INTERNAL_color=" + AS_INTERNAL_color;
+				themeString += "\n/instance/com.powerflasher.fdt.ui/AS_KEYWORD_color=" + AS_KEYWORD_color;
+				themeString += "\n/instance/com.powerflasher.fdt.ui/AS_PRIVATE_color=" + AS_PRIVATE_color;
+				themeString += "\n/instance/com.powerflasher.fdt.ui/AS_PROTECTED_color=" + AS_PROTECTED_color;
+				themeString += "\n/instance/com.powerflasher.fdt.ui/AS_PUBLIC_color=" + AS_PUBLIC_color;
+				themeString += "\n/instance/com.powerflasher.fdt.ui/AS_RETURN_color=" + AS_RETURN_color;
+				themeString += "\n/instance/com.powerflasher.fdt.ui/AS_TYPE_color=" + AS_TYPE_color;
+				themeString += "\n/instance/com.powerflasher.fdt.ui/CHARACTER_color=" + CHARACTER_color;
+
+				themeString += "\n/instance/com.powerflasher.fdt.ui/com.powerflasher.fdt.ui.AS3SemanticHighlightGenerator.AS3.NamespaceModifier_color=" + NamespaceModifier_color;
+				themeString += "\n/instance/com.powerflasher.fdt.ui/com.powerflasher.fdt.ui.AS3SemanticHighlightGenerator.AS3.Namespace_color=" + Namespace_color;
+				themeString += "\n/instance/com.powerflasher.fdt.ui/com.powerflasher.fdt.ui.BasicSemanticHighlightGenerator.AS3.Class_color=" + Class_color;
+				themeString += "\n/instance/com.powerflasher.fdt.ui/com.powerflasher.fdt.ui.BasicSemanticHighlightGenerator.AS3.Field_color=" + Field_color;
+				themeString += "\n/instance/com.powerflasher.fdt.ui/com.powerflasher.fdt.ui.BasicSemanticHighlightGenerator.AS3.Function_bold=true";
+				themeString += "\n/instance/com.powerflasher.fdt.ui/com.powerflasher.fdt.ui.BasicSemanticHighlightGenerator.AS3.Function_color=" + Function_color;
+				themeString += "\n/instance/com.powerflasher.fdt.ui/com.powerflasher.fdt.ui.BasicSemanticHighlightGenerator.AS3.Getter_color=" + Getter_color;
+				themeString += "\n/instance/com.powerflasher.fdt.ui/com.powerflasher.fdt.ui.BasicSemanticHighlightGenerator.AS3.Setter_color=" + Setter_color;
+				themeString += "\n/instance/com.powerflasher.fdt.ui/com.powerflasher.fdt.ui.BasicSemanticHighlightGenerator.AS3.StaticField_color=" + StaticField_color;
+				themeString += "\n/instance/com.powerflasher.fdt.ui/com.powerflasher.fdt.ui.BasicSemanticHighlightGenerator.AS3.StaticField_italic=false";
+				themeString += "\n/instance/com.powerflasher.fdt.ui/com.powerflasher.fdt.ui.BasicSemanticHighlightGenerator.AS3.StaticFunction_color=" + StaticFunction_color;
+				themeString += "\n/instance/com.powerflasher.fdt.ui/com.powerflasher.fdt.ui.BasicSemanticHighlightGenerator.AS3.StaticGetter_color=" + StaticGetter_color;
+				themeString += "\n/instance/com.powerflasher.fdt.ui/com.powerflasher.fdt.ui.BasicSemanticHighlightGenerator.AS3.StaticSetter_color=" + StaticSetter_color;
+				themeString += "\n/instance/com.powerflasher.fdt.ui/com.powerflasher.fdt.ui.BasicSemanticHighlightGenerator.AS3.TopLevelVariable_color=" + TopLevelVariable_color;
+
+//				themeString += "\n/instance/com.powerflasher.fdt.ui/JAVADOC_color=249,190,15";
+//				themeString += "\n/instance/com.powerflasher.fdt.ui/JAVADOC_KEYWORD_color=249,164,49";
+//				themeString += "\n/instance/com.powerflasher.fdt.ui/JAVADOC_TAG_color=193,187,151";
+				themeString += "\n/instance/com.powerflasher.fdt.ui/MULTILINE_COMMENT_color=" + MULTILINE_COMMENT_color;
+				themeString += "\n/instance/com.powerflasher.fdt.ui/SINGLELINE_COMMENT_color=" + SINGLELINE_COMMENT_color;
+				themeString += "\n/instance/com.powerflasher.fdt.ui/STRING_color=" + STRING_color;
+
+				themeString += "\n/instance/org.eclipse.ui.editors/AbstractTextEditor.Color.Background.SystemDefault=false";
+				themeString += "\n/instance/org.eclipse.ui.editors/AbstractTextEditor.Color.Background=" + Background;
+
+				themeString += "\n/instance/org.eclipse.ui.editors/currentLineColor=" + currentLineColor;
+				themeString += "\n/instance/org.eclipse.ui.editors/lineNumberColor=" + lineNumberColor;
+				themeString += "\n/instance/org.eclipse.ui.editors/lineNumberRuler=true";
+				themeString += "\n/instance/org.eclipse.ui.editors/printMarginColor=" + printMarginColor;
+				
+				
+				var savedFile:File = event.target as File;
+				var stream:FileStream = new FileStream();
+				stream.open(savedFile, FileMode.WRITE);
+				stream.writeUTFBytes(themeString);
+				stream.close();
+			}
+
+		]]>
+	</fx:Script>
+	<s:TextArea 
+		id="codeDisplay" 
+		width="100%" 
+		height="100%" 
+		fontFamily="COURIER_NEW" 
+		fontSize="16" 
+		selectable="false" 
+		editable="false" 
+		styleName="codeDisplay"
+		/>
+	
+	<mx:ColorPicker 
+		id="colorPicker" 
+		focusEnabled="false" 
+		focusAlpha="0" 
+		visible="false" 
+		width="10" 
+		height="10" 
+		change="colorPicker_changeHandler(event)"
+		itemRollOver="colorPicker_itemRollOverHandler(event)"
+		close="colorPicker_closeHandler(event)"
+		/>
+	
+	<mx:ColorPicker 
+		id="backgroundColorPicker" 
+		focusEnabled="false" 
+		focusAlpha="0" 
+		visible="false" 
+		width="10" 
+		height="10" 
+		change="backgroundColorPicker_changeHandler(event)"
+		itemRollOver="backgroundColorPicker_itemRollOverHandler(event)"
+		close="backgroundColorPicker_closeHandler(event)"
+		/>
+	
+	<s:Button id="saveButton" right="0" bottom="0" label="Save" click="saveButton_clickHandler(event)"/>
+	
+</s:WindowedApplication>
